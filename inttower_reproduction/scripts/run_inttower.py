@@ -282,7 +282,8 @@ def main():
     train_loader, test_loader, feature_info = get_data_loaders(
         args.data_dir, args.batch_size, args.num_workers
     )
-    print(f"训练集: {len(train_loader.dataset)}个样本, 测试集: {len(test_loader.dataset)}个样本")
+
+    #print(f"训练集: {len(train_loader.dataset)}个样本, 测试集: {len(test_loader.dataset)}个样本")
     
     # 解析MLP维度
     mlp_dims = [int(dim) for dim in args.mlp_dims.split(',')]

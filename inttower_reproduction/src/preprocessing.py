@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
+import pickle
 
 class MovieLensDataProcessor:
     """处理MovieLens-1M数据集的类"""
@@ -14,17 +15,18 @@ class MovieLensDataProcessor:
             data_dir: MovieLens-1M数据所在的目录
         """
         self.data_dir = data_dir
-        self.user_data = None
-        self.movie_data = None
-        self.rating_data = None
-        self.merged_data = None
-        self.train_data = None
-        self.test_data = None
+        self.user_data = pd.DataFrame()
+        self.movie_data = pd.DataFrame()
+        self.rating_data = pd.DataFrame()
+        self.merged_data = pd.DataFrame()
+        self.train_data = pd.DataFrame()
+        self.test_data = pd.DataFrame()
         self.user_features = None
         self.item_features = None
         self.user_feature_dims = {}
         self.item_feature_dims = {}
-        self.genre_list = None
+        self.genre_list = []
+        self.genre_map = {}
         
     def load_data(self):
         """加载原始数据文件"""
@@ -104,12 +106,12 @@ class MovieLensDataProcessor:
         # 对UserID进行编码
         unique_user_ids = self.merged_data["UserID"].unique()
         user_id_map = {id: idx for idx, id in enumerate(unique_user_ids)}
-        self.merged_data["UserID_Idx"] = self.merged_data["UserID"].map(user_id_map)
+        self.merged_data["UserID_Idx"] = self.merged_data["UserID"].apply(lambda x: user_id_map[x])
         self.user_feature_dims["UserID"] = len(user_id_map)
         
         # 对Gender进行编码
         gender_map = {"M": 0, "F": 1}
-        self.merged_data["Gender_Idx"] = self.merged_data["Gender"].map(gender_map)
+        self.merged_data["Gender_Idx"] = self.merged_data["Gender"].apply(lambda x: gender_map[x])
         self.user_feature_dims["Gender"] = len(gender_map)
         
         # 对Age进行编码 (已分箱)
@@ -122,20 +124,20 @@ class MovieLensDataProcessor:
             50: 5,  # "50-55"
             56: 6,  # "56+"
         }
-        self.merged_data["Age_Idx"] = self.merged_data["Age"].map(age_map)
+        self.merged_data["Age_Idx"] = self.merged_data["Age"].apply(lambda x: age_map[x])
         self.user_feature_dims["Age"] = len(age_map)
         
         # 对Occupation进行编码
         occupation_values = self.merged_data["Occupation"].unique()
         occupation_map = {val: idx for idx, val in enumerate(occupation_values)}
-        self.merged_data["Occupation_Idx"] = self.merged_data["Occupation"].map(occupation_map)
+        self.merged_data["Occupation_Idx"] = self.merged_data["Occupation"].apply(lambda x: occupation_map[x])
         self.user_feature_dims["Occupation"] = len(occupation_map)
         
         # 电影特征处理
         # 对MovieID进行编码
         unique_movie_ids = self.merged_data["MovieID"].unique()
         movie_id_map = {id: idx for idx, id in enumerate(unique_movie_ids)}
-        self.merged_data["MovieID_Idx"] = self.merged_data["MovieID"].map(movie_id_map)
+        self.merged_data["MovieID_Idx"] = self.merged_data["MovieID"].apply(lambda x: movie_id_map[x])
         self.item_feature_dims["MovieID"] = len(movie_id_map)
         
         # 处理Genres特征（多值类别）
@@ -189,6 +191,10 @@ class MovieLensDataProcessor:
         # 创建输出目录
         os.makedirs(output_dir, exist_ok=True)
         
+        # 保证Genres_Idx为list[int]类型
+        self.train_data["Genres_Idx"] = self.train_data["Genres_Idx"].apply(lambda x: list(x))
+        self.test_data["Genres_Idx"] = self.test_data["Genres_Idx"].apply(lambda x: list(x))
+        
         # 保存训练集和测试集
         self.train_data.to_pickle(os.path.join(output_dir, "train_data.pkl"))
         self.test_data.to_pickle(os.path.join(output_dir, "test_data.pkl"))
@@ -200,7 +206,6 @@ class MovieLensDataProcessor:
             "genre_list": self.genre_list
         }
         
-        import pickle
         with open(os.path.join(output_dir, "feature_info.pkl"), "wb") as f:
             pickle.dump(feature_dims, f)
         

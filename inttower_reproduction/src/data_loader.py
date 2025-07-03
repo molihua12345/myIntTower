@@ -32,7 +32,7 @@ class MovieLensDataset(Dataset):
         self.item_features = {
             'MovieID': torch.LongTensor(data_df['MovieID_Idx'].values),
             'Genres': [
-                torch.LongTensor(eval(genres_idx) if isinstance(genres_idx, str) else genres_idx)
+                torch.LongTensor(genres_idx)
                 for genres_idx in data_df['Genres_Idx'].values
             ]
         }
