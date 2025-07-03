@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .two_tower import TwoTowerModel
+import numpy as np
 
 
 class LightSE(nn.Module):
@@ -317,6 +318,10 @@ class IntTowerModel(nn.Module):
             y_pred: 预测分数
             loss_cir: CIR损失（如果启用）
         """
+        # 清空之前的塔输出，防止累积
+        self.two_tower.user_tower_outputs = []
+        self.two_tower.item_tower_outputs = []
+
         # 准备特征嵌入
         user_embs = []
         for feature, embedding_layer in self.two_tower.user_embeddings.items():
@@ -326,12 +331,10 @@ class IntTowerModel(nn.Module):
         for feature, embedding_layer in self.two_tower.item_embeddings.items():
             if feature == 'Genres':
                 # 处理电影类型的多值特征
-                offsets = torch.zeros(item_features[feature].shape[0], dtype=torch.long, device=item_features[feature].device)
-                for i in range(1, item_features[feature].shape[0]):
-                    offsets[i] = offsets[i-1] + len(item_features[feature][i-1])
-                
+                batch_size = len(item_features[feature])
+                lengths = [len(x) for x in item_features[feature]]
+                offsets = torch.tensor([0] + list(np.cumsum(lengths)[:-1]), dtype=torch.long, device=item_features[feature][0].device)
                 indices_flattened = torch.cat(item_features[feature])
-                
                 genre_emb = embedding_layer(indices_flattened, offsets)
                 item_embs.append(genre_emb.unsqueeze(1))
             else:
@@ -357,12 +360,12 @@ class IntTowerModel(nn.Module):
         # 通过用户塔和物品塔
         for i, layer in enumerate(self.two_tower.user_mlp):
             user_embs = layer(user_embs)
-            if i % 3 == 2:  # 每个完整块(Linear+ReLU+Dropout)后保存输出
+            if isinstance(layer, nn.Linear):
                 self.two_tower.user_tower_outputs.append(user_embs)
         
         for i, layer in enumerate(self.two_tower.item_mlp):
             item_embs = layer(item_embs)
-            if i % 3 == 2:  # 每个完整块(Linear+ReLU+Dropout)后保存输出
+            if isinstance(layer, nn.Linear):
                 self.two_tower.item_tower_outputs.append(item_embs)
         
         # 获取最终的用户和物品表示

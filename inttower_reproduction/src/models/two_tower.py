@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 
 class TwoTowerModel(nn.Module):
@@ -115,15 +116,11 @@ class TwoTowerModel(nn.Module):
         for feature, embedding_layer in self.item_embeddings.items():
             if feature == 'Genres':
                 # 处理电影类型的多值特征
-                # offsets是每个样本在展平后的indices中的起始位置
-                offsets = torch.zeros(item_features[feature].shape[0], dtype=torch.long, device=item_features[feature].device)
-                for i in range(1, item_features[feature].shape[0]):
-                    offsets[i] = offsets[i-1] + len(item_features[feature][i-1])
-                
-                # 将所有样本的类型索引展平为一维
+                # item_features[feature] 是 list[LongTensor]
+                batch_size = len(item_features[feature])
+                lengths = [len(x) for x in item_features[feature]]
+                offsets = torch.tensor([0] + list(np.cumsum(lengths)[:-1]), dtype=torch.long, device=item_features[feature][0].device)
                 indices_flattened = torch.cat(item_features[feature])
-                
-                # 使用EmbeddingBag获取聚合后的嵌入
                 genre_emb = self.item_embeddings[feature](
                     indices_flattened, offsets
                 )
@@ -137,12 +134,12 @@ class TwoTowerModel(nn.Module):
         # 通过用户塔和物品塔
         for i, layer in enumerate(self.user_mlp):
             user_emb = layer(user_emb)
-            if i % 3 == 2:  # 每个完整块(Linear+ReLU+Dropout)后保存输出
+            if isinstance(layer, nn.Linear):
                 self.user_tower_outputs.append(user_emb)
         
         for i, layer in enumerate(self.item_mlp):
             item_emb = layer(item_emb)
-            if i % 3 == 2:  # 每个完整块(Linear+ReLU+Dropout)后保存输出
+            if isinstance(layer, nn.Linear):
                 self.item_tower_outputs.append(item_emb)
         
         # L2归一化

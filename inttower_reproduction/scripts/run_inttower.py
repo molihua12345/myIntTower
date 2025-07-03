@@ -215,7 +215,11 @@ def train(args, model, train_loader, test_loader, device, experiment_name):
                 
                 # 前向传播
                 if args.use_cir:
-                    logits, _ = model(user_features, item_features)
+                    out = model(user_features, item_features)
+                    if isinstance(out, tuple):
+                        logits = out[0]
+                    else:
+                        logits = out
                 else:
                     logits = model(user_features, item_features)
                 
