@@ -1,0 +1,13 @@
+2025保研考核题目                                    
+请从以下三个任务中任选其一完成，并在考核时进行汇报
+任务一                                                                          
+原始论文【IntTower: The Next Generation of Two-Tower Model for Pre-Ranking System】
+任务目标
+1. 讲解论文
+2. 实现论文中的  IntTower 方法
+3. 复现论文 Table 2 中 Two-Tower 、 IntTower 在 MovieLens-1M 数据集上的结果
+	( AUC 、 Logloss )
+注：
+1. 要求自己编写代码，可参考但不可直接使用官方实现
+2. 结果合理且与原文实验结果相似即可，不要求完全一致
+                                                                        
