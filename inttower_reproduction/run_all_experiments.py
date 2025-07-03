@@ -17,16 +17,18 @@ def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description="运行IntTower所有实验")
     
-    parser.add_argument("--skip_preprocess", action="store_true", 
+    parser.add_argument("--skip_preprocess", action="store_true", default=False, 
                         help="跳过数据预处理")
-    parser.add_argument("--skip_two_tower", action="store_true", 
+    parser.add_argument("--skip_two_tower", action="store_true", default=False, 
                         help="跳过Two-Tower训练")
-    parser.add_argument("--skip_inttower", action="store_true", 
+    parser.add_argument("--skip_inttower", action="store_true", default=False, 
                         help="跳过IntTower训练")
-    parser.add_argument("--skip_ablation", action="store_true", 
+    parser.add_argument("--skip_ablation", action="store_true", default=False, 
                         help="跳过消融实验")
     parser.add_argument("--gpu", type=int, default=0, 
                         help="GPU编号，-1表示使用CPU")
+    parser.add_argument("--num_workers", type=int, default=None, 
+                        help="数据加载的并行工作进程数，传递给训练脚本")
     
     return parser.parse_args()
 
@@ -73,6 +75,8 @@ def main():
     if not args.skip_two_tower:
         print("\n=== 步骤2: 训练基线Two-Tower模型 ===\n")
         cmd = f"python scripts/run_two_tower.py --gpu {args.gpu}"
+        if args.num_workers is not None:
+            cmd += f" --num_workers {args.num_workers}"
         success = run_command(cmd)
         if not success:
             print("Two-Tower训练失败，但继续执行")
@@ -81,6 +85,8 @@ def main():
     if not args.skip_inttower:
         print("\n=== 步骤3: 训练完整IntTower模型 ===\n")
         cmd = f"python scripts/run_inttower.py --use_light_se --use_fe_block --use_cir --gpu {args.gpu}"
+        if args.num_workers is not None:
+            cmd += f" --num_workers {args.num_workers}"
         success = run_command(cmd)
         if not success:
             print("IntTower训练失败，但继续执行")
@@ -92,26 +98,36 @@ def main():
         # a. 无Light-SE
         print("\n--- 消融实验: 无Light-SE ---\n")
         cmd = f"python scripts/run_inttower.py --use_fe_block --use_cir --gpu {args.gpu}"
+        if args.num_workers is not None:
+            cmd += f" --num_workers {args.num_workers}"
         run_command(cmd)
         
         # b. 无FE-Block
         print("\n--- 消融实验: 无FE-Block ---\n")
         cmd = f"python scripts/run_inttower.py --use_light_se --use_cir --gpu {args.gpu}"
+        if args.num_workers is not None:
+            cmd += f" --num_workers {args.num_workers}"
         run_command(cmd)
         
         # c. 无CIR
         print("\n--- 消融实验: 无CIR ---\n")
         cmd = f"python scripts/run_inttower.py --use_light_se --use_fe_block --gpu {args.gpu}"
+        if args.num_workers is not None:
+            cmd += f" --num_workers {args.num_workers}"
         run_command(cmd)
         
         # d. 使用SENET
         print("\n--- 消融实验: 使用SENET ---\n")
         cmd = f"python scripts/run_inttower.py --use_senet --use_fe_block --use_cir --gpu {args.gpu}"
+        if args.num_workers is not None:
+            cmd += f" --num_workers {args.num_workers}"
         run_command(cmd)
         
         # e. 使用FC
         print("\n--- 消融实验: 使用FC ---\n")
         cmd = f"python scripts/run_inttower.py --use_light_se --use_fc --use_cir --gpu {args.gpu}"
+        if args.num_workers is not None:
+            cmd += f" --num_workers {args.num_workers}"
         run_command(cmd)
     
     # 5. 可视化结果
