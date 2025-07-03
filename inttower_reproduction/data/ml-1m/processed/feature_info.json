@@ -1,0 +1,1 @@
+{"user_feature_dims": {"UserID": 6040, "Gender": 2, "Age": 7, "Occupation": 21}, "item_feature_dims": {"MovieID": 3706, "Genres": 18}, "genre_list": ["Action", "Adventure", "Animation", "Children's", "Comedy", "Crime", "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror", "Musical", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western"]}

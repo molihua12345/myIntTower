@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
+import json
 
 
 class MovieLensDataset(Dataset):
@@ -100,13 +101,12 @@ def get_data_loaders(data_dir="./data/ml-1m/processed", batch_size=2048, num_wor
         feature_info: 特征信息字典
     """
     # 加载处理后的数据
-    train_data = pd.read_pickle(os.path.join(data_dir, "train_data.pkl"))
-    test_data = pd.read_pickle(os.path.join(data_dir, "test_data.pkl"))
+    train_data = pd.read_parquet(os.path.join(data_dir, "train_data.parquet"))
+    test_data = pd.read_parquet(os.path.join(data_dir, "test_data.parquet"))
     
     # 加载特征信息
-    import pickle
-    with open(os.path.join(data_dir, "feature_info.pkl"), "rb") as f:
-        feature_info = pickle.load(f)
+    with open(os.path.join(data_dir, "feature_info.json"), "r", encoding="utf-8") as f:
+        feature_info = json.load(f)
     
     # 创建数据集
     train_dataset = MovieLensDataset(train_data)

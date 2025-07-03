@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-import pickle
+import json
 
 class MovieLensDataProcessor:
     """处理MovieLens-1M数据集的类"""
@@ -196,8 +196,8 @@ class MovieLensDataProcessor:
         self.test_data["Genres_Idx"] = self.test_data["Genres_Idx"].apply(lambda x: list(x))
         
         # 保存训练集和测试集
-        self.train_data.to_pickle(os.path.join(output_dir, "train_data.pkl"))
-        self.test_data.to_pickle(os.path.join(output_dir, "test_data.pkl"))
+        self.train_data.to_parquet(os.path.join(output_dir, "train_data.parquet"), index=False)
+        self.test_data.to_parquet(os.path.join(output_dir, "test_data.parquet"), index=False)
         
         # 保存特征维度信息
         feature_dims = {
@@ -206,8 +206,8 @@ class MovieLensDataProcessor:
             "genre_list": self.genre_list
         }
         
-        with open(os.path.join(output_dir, "feature_info.pkl"), "wb") as f:
-            pickle.dump(feature_dims, f)
+        with open(os.path.join(output_dir, "feature_info.json"), "w", encoding="utf-8") as f:
+            json.dump(feature_dims, f, ensure_ascii=False)
         
         print(f"数据保存完成: {output_dir}")
         
