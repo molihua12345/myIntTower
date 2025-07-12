@@ -64,6 +64,8 @@ def parse_args():
     # 训练参数
     parser.add_argument("--lr", type=float, default=0.001, 
                         help="学习率")
+    parser.add_argument("--weight_decay", type=float, default=1e-5, 
+                        help="L2正则化系数(权重衰减)")
     parser.add_argument("--epochs", type=int, default=30, 
                         help="训练轮数")
     parser.add_argument("--patience", type=int, default=5, 
@@ -123,7 +125,7 @@ def train(args, model, train_loader, test_loader, device, experiment_name):
         最佳测试集AUC和Logloss
     """
     # 设置优化器
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     
     # 设置损失函数
     criterion = torch.nn.BCEWithLogitsLoss()
@@ -175,6 +177,14 @@ def train(args, model, train_loader, test_loader, device, experiment_name):
             else:
                 logits = model(user_features, item_features)
                 loss = criterion(logits, labels)
+            
+            # 计算L2正则化项
+            l2_reg = 0.0
+            for param in model.parameters():
+                l2_reg += torch.norm(param, p=2)**2
+            
+            # 添加L2正则化到损失函数
+            loss += args.weight_decay * l2_reg
             
             # 反向传播和优化
             loss.backward()
@@ -317,6 +327,7 @@ def main():
     print(f"  使用FE-Block: {args.use_fe_block}")
     print(f"  使用CIR: {args.use_cir}")
     print(f"  使用FC替代FE-Block: {args.use_fc}")
+    print(f"  L2正则化系数: {args.weight_decay}")
     if args.use_cir:
         print(f"  CIR损失权重: {args.cir_weight}")
     
@@ -341,6 +352,7 @@ def main():
             "use_cir": args.use_cir,
             "use_fc": args.use_fc,
             "cir_weight": args.cir_weight if args.use_cir else 0,
+            "weight_decay": args.weight_decay,
             "head_num": args.head_num,
             "head_dim": args.head_dim,
             "temperature": args.temperature
