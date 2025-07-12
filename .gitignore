@@ -1,0 +1,10 @@
+myinttower/
+# 忽略 Jupyter Notebook 的检查点文件夹
+.ipynb_checkpoints/
+
+# 忽略 Python 编译产生的缓存文件夹
+__pycache__/
+
+.vscode/
+
+*.zip
