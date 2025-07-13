@@ -209,7 +209,7 @@ class CIR(nn.Module):
         
         # 计算批次内所有用户-物品对的相似度矩阵
         # [batch_size, embed_dim] @ [embed_dim, batch_size] -> [batch_size, batch_size]
-        sim_matrix = torch.mm(user_embeds, item_embeds.t()) / self.temperature
+        sim_matrix = torch.matmul(user_embeds, item_embeds.t()) / self.temperature
         
         # 对角线上的元素是正样本对的相似度
         positive_samples = torch.diag(sim_matrix)

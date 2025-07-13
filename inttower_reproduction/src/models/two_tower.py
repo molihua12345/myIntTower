@@ -46,7 +46,7 @@ class TwoTowerModel(nn.Module):
             if feature == 'Genres':
                 # 使用EmbeddingBag处理多值类别特征
                 self.item_embeddings[feature] = nn.EmbeddingBag(
-                    dim, embedding_dim, mode='mean'
+                    dim, embedding_dim, mode='mean', sparse=False
                 )
             else:
                 self.item_embeddings[feature] = nn.Embedding(dim, embedding_dim)
@@ -75,13 +75,13 @@ class TwoTowerModel(nn.Module):
         
         # 第一层
         layers.append(nn.Linear(input_dim, mlp_dims[0]))
-        layers.append(nn.ReLU())
+        layers.append(nn.ReLU(inplace=True))  # 使用inplace=True提高GPU效率
         layers.append(nn.Dropout(dropout))
         
         # 中间层
         for i in range(len(mlp_dims) - 1):
             layers.append(nn.Linear(mlp_dims[i], mlp_dims[i + 1]))
-            layers.append(nn.ReLU())
+            layers.append(nn.ReLU(inplace=True))  # 使用inplace=True提高GPU效率
             layers.append(nn.Dropout(dropout))
         
         return nn.Sequential(*layers)
@@ -99,6 +99,9 @@ class TwoTowerModel(nn.Module):
             y_pred: 预测分数
             (可选) user_emb, item_emb: 用户和物品的最终嵌入向量
         """
+        # 确保在同一设备上运行所有操作
+        device = next(iter(user_features.values())).device
+        
         # 清空之前的塔输出
         self.user_tower_outputs = []
         self.item_tower_outputs = []
@@ -119,35 +122,36 @@ class TwoTowerModel(nn.Module):
                 # item_features[feature] 是 list[LongTensor]
                 batch_size = len(item_features[feature])
                 lengths = [len(x) for x in item_features[feature]]
-                offsets = torch.tensor([0] + list(np.cumsum(lengths)[:-1]), dtype=torch.long, device=item_features[feature][0].device)
+                offsets = torch.tensor([0] + list(np.cumsum(lengths)[:-1]), dtype=torch.long, device=device)
                 indices_flattened = torch.cat(item_features[feature])
-                genre_emb = self.item_embeddings[feature](
-                    indices_flattened, offsets
-                )
+                with torch.cuda.amp.autocast(enabled=device.type=='cuda'):
+                    genre_emb = embedding_layer(indices_flattened, offsets)
                 item_embs.append(genre_emb)
             else:
-                item_embs.append(embedding_layer(item_features[feature]))
+                with torch.cuda.amp.autocast(enabled=device.type=='cuda'):
+                    item_embs.append(embedding_layer(item_features[feature]))
         
         # 拼接所有物品特征嵌入
         item_emb = torch.cat(item_embs, dim=1)
         
-        # 通过用户塔和物品塔
-        for i, layer in enumerate(self.user_mlp):
-            user_emb = layer(user_emb)
-            if isinstance(layer, nn.Linear):
-                self.user_tower_outputs.append(user_emb)
-        
-        for i, layer in enumerate(self.item_mlp):
-            item_emb = layer(item_emb)
-            if isinstance(layer, nn.Linear):
-                self.item_tower_outputs.append(item_emb)
-        
-        # L2归一化
-        user_emb = F.normalize(user_emb, p=2, dim=1)
-        item_emb = F.normalize(item_emb, p=2, dim=1)
-        
-        # 点积计算预测分数
-        y_pred = torch.sum(user_emb * item_emb, dim=1)
+        # 使用混合精度计算通过用户塔和物品塔
+        with torch.cuda.amp.autocast(enabled=device.type=='cuda'):
+            for i, layer in enumerate(self.user_mlp):
+                user_emb = layer(user_emb)
+                if isinstance(layer, nn.Linear):
+                    self.user_tower_outputs.append(user_emb)
+            
+            for i, layer in enumerate(self.item_mlp):
+                item_emb = layer(item_emb)
+                if isinstance(layer, nn.Linear):
+                    self.item_tower_outputs.append(item_emb)
+            
+            # L2归一化
+            user_emb = F.normalize(user_emb, p=2, dim=1)
+            item_emb = F.normalize(item_emb, p=2, dim=1)
+            
+            # 点积计算预测分数 - 使用矩阵乘法加速
+            y_pred = torch.matmul(user_emb, item_emb.t()).diagonal()
         
         if return_embeddings:
             return y_pred, user_emb, item_emb

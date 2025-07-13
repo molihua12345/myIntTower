@@ -110,20 +110,9 @@ def get_experiment_name(args):
 
 
 def train(args, model, train_loader, test_loader, device, experiment_name):
-    """
-    训练IntTower模型
+    # 确保模型在GPU上
+    model = model.to(device)
     
-    参数:
-        args: 命令行参数
-        model: IntTower模型实例
-        train_loader: 训练数据加载器
-        test_loader: 测试数据加载器
-        device: 训练设备
-        experiment_name: 实验名称
-        
-    返回:
-        最佳测试集AUC和Logloss
-    """
     # 设置优化器
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     
@@ -147,6 +136,19 @@ def train(args, model, train_loader, test_loader, device, experiment_name):
     
     # 开始训练
     print(f"开始训练IntTower模型（{experiment_name}），总轮数：{args.epochs}")
+    print(f"使用设备: {device}")
+    
+    # 设置CUDA性能优化
+    torch.backends.cudnn.benchmark = True
+    
+    # 创建CUDA事件用于GPU计时
+    if device.type == 'cuda':
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        torch.cuda.empty_cache()
+    
+    # 使用混合精度训练
+    scaler = torch.cuda.amp.GradScaler()
     
     for epoch in range(args.epochs):
         # 训练阶段
@@ -158,50 +160,60 @@ def train(args, model, train_loader, test_loader, device, experiment_name):
         # 使用tqdm显示进度条
         train_iter = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
         
+        # GPU计时开始
+        if device.type == 'cuda':
+            start_event.record(torch.cuda.current_stream(device))
+        
         for user_features, item_features, labels in train_iter:
-            # 将数据转移到设备
-            user_features = {k: v.to(device) for k, v in user_features.items()}
+            # 将数据转移到GPU，使用non_blocking=True
+            user_features = {k: v.to(device, non_blocking=True) for k, v in user_features.items()}
             item_features = {
-                'MovieID': item_features['MovieID'].to(device),
-                'Genres': [g.to(device) for g in item_features['Genres']]
+                'MovieID': item_features['MovieID'].to(device, non_blocking=True),
+                'Genres': [g.to(device, non_blocking=True) for g in item_features['Genres']]
             }
-            labels = labels.to(device)
+            labels = labels.to(device, non_blocking=True)
             
             # 前向传播
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)  # 更高效的梯度清零
             
-            # IntTower可能返回预测和CIR损失
-            if args.use_cir:
-                logits, cir_loss = model(user_features, item_features)
-                loss = criterion(logits, labels) + args.cir_weight * cir_loss
-            else:
-                logits = model(user_features, item_features)
-                loss = criterion(logits, labels)
+            # 使用自动混合精度（AMP）
+            with torch.cuda.amp.autocast():
+                # IntTower可能返回预测和CIR损失
+                if args.use_cir:
+                    logits, cir_loss = model(user_features, item_features)
+                    loss = criterion(logits, labels) + args.cir_weight * cir_loss
+                else:
+                    logits = model(user_features, item_features)
+                    loss = criterion(logits, labels)
             
-            # 计算L2正则化项
-            l2_reg = 0.0
-            for param in model.parameters():
-                l2_reg += torch.norm(param, p=2)**2
-            
-            # 添加L2正则化到损失函数
-            loss += args.weight_decay * l2_reg
-            
-            # 反向传播和优化
-            loss.backward()
-            optimizer.step()
+            # 使用AMP的缩放器进行反向传播和优化
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             
             # 记录损失和预测
             train_loss += loss.item() * labels.size(0)
-            train_preds.append(torch.sigmoid(logits).detach().cpu().numpy())
-            train_labels.append(labels.cpu().numpy())
+            with torch.cuda.amp.autocast():
+                train_preds.append(torch.sigmoid(logits).detach())
+                train_labels.append(labels)
             
             # 更新进度条
             train_iter.set_postfix({"loss": f"{loss.item():.4f}"})
+            
+            # 强制同步GPU，避免队列积压
+            if device.type == 'cuda':
+                torch.cuda.synchronize(device)
+        
+        # GPU计时结束
+        if device.type == 'cuda':
+            end_event.record(torch.cuda.current_stream(device))
+            torch.cuda.synchronize(device)
+            print(f"训练阶段GPU时间: {start_event.elapsed_time(end_event)/1000:.3f} 秒")
         
         # 计算训练集指标
         train_loss /= len(train_loader.dataset)
-        train_preds = np.concatenate(train_preds)
-        train_labels = np.concatenate(train_labels)
+        train_preds = torch.cat(train_preds).cpu().numpy()
+        train_labels = torch.cat(train_labels).cpu().numpy()
         train_auc = calculate_auc(train_labels, train_preds)
         train_logloss = calculate_logloss(train_labels, train_preds)
         
@@ -213,33 +225,48 @@ def train(args, model, train_loader, test_loader, device, experiment_name):
         # 使用tqdm显示进度条
         test_iter = tqdm(test_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Test]")
         
+        # GPU计时开始
+        if device.type == 'cuda':
+            start_event.record(torch.cuda.current_stream(device))
+        
         with torch.no_grad():
             for user_features, item_features, labels in test_iter:
-                # 将数据转移到设备
-                user_features = {k: v.to(device) for k, v in user_features.items()}
+                # 将数据转移到GPU，使用non_blocking=True
+                user_features = {k: v.to(device, non_blocking=True) for k, v in user_features.items()}
                 item_features = {
-                    'MovieID': item_features['MovieID'].to(device),
-                    'Genres': [g.to(device) for g in item_features['Genres']]
+                    'MovieID': item_features['MovieID'].to(device, non_blocking=True),
+                    'Genres': [g.to(device, non_blocking=True) for g in item_features['Genres']]
                 }
-                labels = labels.to(device)
+                labels = labels.to(device, non_blocking=True)
                 
                 # 前向传播
-                if args.use_cir:
-                    out = model(user_features, item_features)
-                    if isinstance(out, tuple):
-                        logits = out[0]
+                with torch.cuda.amp.autocast():  # 使用混合精度
+                    if args.use_cir:
+                        out = model(user_features, item_features)
+                        if isinstance(out, tuple):
+                            logits = out[0]
+                        else:
+                            logits = out
                     else:
-                        logits = out
-                else:
-                    logits = model(user_features, item_features)
+                        logits = model(user_features, item_features)
                 
                 # 记录预测
-                test_preds.append(torch.sigmoid(logits).cpu().numpy())
-                test_labels.append(labels.cpu().numpy())
+                test_preds.append(torch.sigmoid(logits))
+                test_labels.append(labels)
+                
+                # 强制同步GPU，避免队列积压
+                if device.type == 'cuda':
+                    torch.cuda.synchronize(device)
+        
+        # GPU计时结束
+        if device.type == 'cuda':
+            end_event.record(torch.cuda.current_stream(device))
+            torch.cuda.synchronize(device)
+            print(f"测试阶段GPU时间: {start_event.elapsed_time(end_event)/1000:.3f} 秒")
         
         # 计算测试集指标
-        test_preds = np.concatenate(test_preds)
-        test_labels = np.concatenate(test_labels)
+        test_preds = torch.cat(test_preds).cpu().numpy()
+        test_labels = torch.cat(test_labels).cpu().numpy()
         test_auc = calculate_auc(test_labels, test_preds)
         test_logloss = calculate_logloss(test_labels, test_preds)
         
@@ -287,17 +314,34 @@ def main():
     # 设置设备
     if args.gpu >= 0 and torch.cuda.is_available():
         device = torch.device(f"cuda:{args.gpu}")
+        # 打印GPU信息
+        gpu_name = torch.cuda.get_device_name(args.gpu)
+        gpu_mem = torch.cuda.get_device_properties(args.gpu).total_memory / 1024 / 1024 / 1024
+        print(f"使用GPU: {gpu_name}, 显存: {gpu_mem:.2f} GB")
+        # 清理GPU缓存
+        torch.cuda.empty_cache()
+        # 设置GPU内存分配策略
+        torch.cuda.set_per_process_memory_fraction(0.9, args.gpu)  # 使用90%的GPU内存
     else:
         device = torch.device("cpu")
-    print(f"使用设备: {device}")
+        print("警告: 未使用GPU，训练将在CPU上进行，速度会很慢")
+    
+    # 优化CUDA配置
+    if device.type == "cuda":
+        # 启用cuDNN自动调优
+        torch.backends.cudnn.benchmark = True
+        # 设置CUDA工作队列最大尺寸以充分利用GPU
+        torch.cuda.set_device(args.gpu)
+        # 禁用CUDA JIT编译缓存以避免内存泄漏
+        os.environ['CUDA_CACHE_DISABLE'] = '1'
+        # 尝试保留50MB左右的显存以防止OOM
+        torch.cuda.set_per_process_memory_fraction(0.9, args.gpu)
     
     # 加载数据
     print("加载数据...")
     train_loader, test_loader, feature_info = get_data_loaders(
         args.data_dir, args.batch_size, args.num_workers
     )
-
-    #print(f"训练集: {len(train_loader.dataset)}个样本, 测试集: {len(test_loader.dataset)}个样本")
     
     # 解析MLP维度
     mlp_dims = [int(dim) for dim in args.mlp_dims.split(',')]
@@ -318,7 +362,21 @@ def main():
         head_dim=args.head_dim,
         temperature=args.temperature
     )
-    model.to(device)
+    
+    # 首先将模型移到GPU，然后统计参数
+    model = model.to(device)
+    
+    # 打印模型参数量
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"模型总参数量: {total_params:,}")
+    print(f"可训练参数量: {trainable_params:,}")
+    
+    # 如果在GPU上，显示当前GPU内存使用情况
+    if device.type == "cuda":
+        allocated = torch.cuda.memory_allocated(args.gpu) / 1024 / 1024
+        reserved = torch.cuda.memory_reserved(args.gpu) / 1024 / 1024
+        print(f"当前GPU内存使用: 分配 {allocated:.2f} MB, 保留 {reserved:.2f} MB")
     
     # 打印模型配置
     print("模型配置:")
