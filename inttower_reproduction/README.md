@@ -1,156 +1,154 @@
-# IntTower复现项目
+# IntTower Reproduction Project
 
-本项目复现论文《IntTower: The Next Generation of Two-Tower Model for Pre-Ranking System》中的方法和实验结果。
+This project reproduces the methods and experimental results from the paper "IntTower: The Next Generation of Two-Tower Model for Pre-Ranking System".
 
-## 项目简介
+## Project Introduction
 
-IntTower是一种改进的双塔模型，旨在解决传统双塔模型表达能力有限的问题。它通过三个核心创新组件增强了双塔架构：
+IntTower is an improved two-tower model designed to address the limited expressiveness of traditional two-tower models. It enhances the two-tower architecture through three core innovative components:
 
-1. Light-SE: 轻量级Squeeze-and-Excitation注意力机制
-2. FE-Block: 细粒度早期特征交互模块
-3. CIR: 对比交互正则化
+1. Light-SE: Lightweight Squeeze-and-Excitation attention mechanism
+2. FE-Block: Fine-grained Early Feature Interaction module
+3. CIR: Contrastive Interaction Regularization
 
-## 项目结构
+## Project Structure
 
 ```
 inttower_reproduction/
-├── data/                        # 数据目录
-│   └── ml-1m/                   # 原始MovieLens-1M数据
-│       └── processed/           # 预处理后的数据
-├── src/                         # 源代码目录
-│   ├── models/                  # 模型实现
-│   │   ├── __init__.py          # 模型包初始化
-│   │   ├── two_tower.py         # 基线双塔模型
-│   │   └── inttower.py          # IntTower模型及其组件
-│   ├── preprocessing.py         # 数据预处理
-│   ├── data_loader.py           # 数据加载类
-│   └── utils.py                 # 工具函数
-├── scripts/                     # 脚本目录
-│   ├── download_data.py         # 数据下载脚本
-│   ├── preprocess_data.py       # 数据预处理脚本
-│   ├── run_two_tower.py         # 基线模型训练脚本
-│   ├── run_inttower.py          # IntTower模型训练脚本
-│   └── visualize_results.py     # 结果可视化脚本
-├── results/                     # 实验结果保存目录
-├── run_all_experiments.py       # 运行所有实验的主脚本
-├── requirements.txt             # 项目依赖
-└── README.md                    # 项目说明文档
+├── data/                        # Data directory
+│   └── ml-1m/                   # Original MovieLens-1M dataset
+│       └── processed/           # Preprocessed data
+├── src/                         # Source code directory
+│   ├── models/                  # Model implementations
+│   │   ├── __init__.py          # Model package initialization
+│   │   ├── two_tower.py         # Baseline two-tower model
+│   │   └── inttower.py          # IntTower model and its components
+│   ├── preprocessing.py         # Data preprocessing
+│   ├── data_loader.py           # Data loading classes
+│   └── utils.py                 # Utility functions
+├── scripts/                     # Scripts directory
+│   ├── download_data.py         # Data download script
+│   ├── preprocess_data.py       # Data preprocessing script
+│   ├── run_two_tower.py         # Baseline model training script
+│   ├── run_inttower.py          # IntTower model training script
+│   └── visualize_results.py     # Results visualization script
+├── results/                     # Experiment results directory
+├── run_all_experiments.py       # Main script to run all experiments
+├── requirements.txt             # Project dependencies
+└── README.md                    # Project documentation
 ```
 
-## 环境设置
+## Environment Setup
 
 ```bash
-# 创建虚拟环境
+# Create virtual environment
 conda create -n inttower python=3.8
 conda activate inttower
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## 数据准备
+## Data Preparation
 
-1. 下载MovieLens-1M数据集：
+1. Download MovieLens-1M dataset:
 ```bash
 python scripts/download_data.py
 ```
 
-2. 数据预处理：
+2. Preprocess data:
 ```bash
 python scripts/preprocess_data.py
 ```
 
-## 模型说明
+## Model Description
 
-### 基线双塔模型（Two-Tower）
+### Baseline Two-Tower Model
 
-传统的双塔模型在两个独立的塔（用户塔和物品塔）中处理特征，并在最后通过点积计算相似度。这种结构在推荐系统中被广泛使用，具有高效的推理性能，但表达能力有限。
+Traditional two-tower models process features in two separate towers (user tower and item tower) and calculate similarity using dot product at the end. This structure is widely used in recommender systems due to its efficient inference performance, but has limited expressiveness.
 
-### IntTower模型
+### IntTower Model
 
-IntTower通过引入三个核心组件增强了双塔模型：
+IntTower enhances the two-tower model by introducing three core components:
 
-1. **Light-SE**：轻量级的Squeeze-and-Excitation注意力机制，通过自适应加权不同的特征嵌入，强调重要特征。与标准SENET相比，Light-SE使用Softmax激活，确保特征权重之和为1。
+1. **Light-SE**: Lightweight Squeeze-and-Excitation attention mechanism that adaptively weights different feature embeddings, emphasizing important features. Compared to standard SENET, Light-SE uses Softmax activation to ensure feature weights sum to 1.
 
-2. **FE-Block**：细粒度早期特征交互模块，让用户塔各层的表示与物品塔的最终表示进行多头交互。这种设计在保持双塔高效特性的同时，增强了模型的表达能力。
+2. **FE-Block**: Fine-grained Early Feature Interaction module that enables multi-head interaction between representations from each layer of the user tower and the final representation of the item tower. This design enhances the model's expressiveness while maintaining the efficient characteristics of two-tower models.
 
-3. **CIR**：对比交互正则化，通过对比学习增强表示空间的结构，使相关的用户-物品对靠近，不相关的远离。
+3. **CIR**: Contrastive Interaction Regularization, which enhances the structure of the representation space through contrastive learning, bringing relevant user-item pairs closer and pushing irrelevant ones apart.
 
-## 运行实验
+## Running Experiments
 
-### 一键运行所有实验
+### Run All Experiments in One Command
 
 ```bash
 python run_all_experiments.py
 ```
 
-### 分步运行
+### Run Step-by-Step
 
-#### 基线模型
+#### Baseline Model
 ```bash
 python scripts/run_two_tower.py
 ```
 
-#### IntTower完整模型
+#### Complete IntTower Model
 ```bash
 python scripts/run_inttower.py --use_light_se --use_fe_block --use_cir
 ```
 
-#### 消融实验
+#### Ablation Experiments
 ```bash
-# 无Light-SE
+# Without Light-SE
 python scripts/run_inttower.py --use_fe_block --use_cir
 
-# 无FE-Block
+# Without FE-Block
 python scripts/run_inttower.py --use_light_se --use_cir
 
-# 无CIR
+# Without CIR
 python scripts/run_inttower.py --use_light_se --use_fe_block
 
-# 使用SENET代替Light-SE
+# Using SENET instead of Light-SE
 python scripts/run_inttower.py --use_senet --use_fe_block --use_cir
 
-# 使用FC层代替FE-Block
+# Using FC layer instead of FE-Block
 python scripts/run_inttower.py --use_light_se --use_fc --use_cir
 ```
 
-#### 可视化结果
+#### Visualize Results
 ```bash
 python scripts/visualize_results.py
 ```
 
-## 参数配置
+## Parameter Configuration
 
-所有的训练脚本都支持通过命令行参数进行配置。主要参数包括：
+All training scripts support configuration via command-line parameters. The main parameters include:
 
-- `--data_dir`: 指定数据目录
-- `--batch_size`: 批次大小
-- `--embedding_dim`: 特征嵌入维度
-- `--mlp_dims`: MLP各层维度，如"256,128,128"
-- `--dropout`: Dropout比例
-- `--lr`: 学习率
-- `--epochs`: 训练轮数
-- `--gpu`: GPU编号，-1表示使用CPU
+- `--data_dir`: Specify data directory
+- `--batch_size`: Batch size
+- `--embedding_dim`: Feature embedding dimension
+- `--mlp_dims`: Dimensions of MLP layers, e.g., "256,128,128"
+- `--dropout`: Dropout ratio
+- `--lr`: Learning rate
+- `--epochs`: Number of training epochs
+- `--gpu`: GPU number, -1 means using CPU
 
-IntTower特有参数：
-- `--use_light_se`: 使用Light-SE
-- `--use_senet`: 使用标准SENET
-- `--use_fe_block`: 使用FE-Block
-- `--use_cir`: 使用CIR
-- `--use_fc`: 使用FC层替代FE-Block
-- `--cir_weight`: CIR损失的权重
+IntTower specific parameters:
+- `--use_light_se`: Use Light-SE
+- `--use_senet`: Use standard SENET
+- `--use_fe_block`: Use FE-Block
+- `--use_cir`: Use CIR
+- `--use_fc`: Use FC layer instead of FE-Block
+- `--cir_weight`: Weight of CIR loss
 
-完整参数列表请查看各脚本的帮助信息（`python scripts/run_inttower.py --help`）。
+For a complete list of parameters, check the help information of each script (e.g., `python scripts/run_inttower.py --help`).
 
-## 结果
+## Results
 
-实验结果将保存在`results`目录中：
-- `results/two_tower/`: 基线模型结果
-- `results/inttower/`: IntTower模型及消融实验结果
-- `results/figures/`: 结果可视化图表
+Experimental results will be saved in the `results` directory:
+- `results/two_tower/`: Baseline model results
+- `results/inttower/`: IntTower model and ablation experiment results
+- `results/figures/`: Result visualization charts
 
+## References
 
-
-## 参考
-
-[1] 《IntTower: The Next Generation of Two-Tower Model for Pre-Ranking System》 
+[1] "IntTower: The Next Generation of Two-Tower Model for Pre-Ranking System" 
