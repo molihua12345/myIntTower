@@ -17,7 +17,6 @@ inttower_reproduction/
 ├── data/                        # 数据目录
 │   └── ml-1m/                   # 原始MovieLens-1M数据
 │       └── processed/           # 预处理后的数据
-├── notebooks/                   # Jupyter笔记本，用于探索性分析
 ├── src/                         # 源代码目录
 │   ├── models/                  # 模型实现
 │   │   ├── __init__.py          # 模型包初始化
@@ -150,18 +149,7 @@ IntTower特有参数：
 - `results/inttower/`: IntTower模型及消融实验结果
 - `results/figures/`: 结果可视化图表
 
-### 预期结果
 
-根据原论文，预期结果如下：
-
-**Table 2 (Two-Tower vs. IntTower):**
-- Two-Tower: AUC 0.8697, Logloss 0.4559
-- IntTower: AUC 0.8974, Logloss 0.3128
-
-**Figure 6(a) (消融实验):**
-- IntTower > w/ SENET > w/ FC > w/o Light-SE > w/o CIR > w/o FE-Block
-
-注意：复现结果可能与原论文有轻微差异，这属于正常现象，因为随机种子、环境差异等因素都会影响最终结果。
 
 ## 参考
 
